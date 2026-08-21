@@ -2,7 +2,6 @@
 ENV["GKSwstype"] = "100"
 
 using CSV
-using TOML
 # Imported modules
 using DataFrames
 using Plots
@@ -51,7 +50,7 @@ end
 
 function Take_Snap(
     xmin::Float32, xmax::Float32, ymin::Float32, ymax::Float32,
-    i::Int64, path::String,
+    n_pixel::Int64, dpi::Int64, i::Int64, path::String,
     x::Vector{Float32}, y::Vector{Float32}, num_parts::Int64
 )
     
@@ -62,13 +61,13 @@ function Take_Snap(
         seriestype = :scatter,
         ms = 1, mc = :black, ma = 0.25,
         legend = false,
-        dpi = 200.0,
+        dpi = dpi,
         xlims = (xmin,xmax),
         ylims = (ymin,ymax),
         xlabel = "X (m)",
         ylabel = "Y (m)",
         aspect_ratio = :equal,
-        size = (1000,1000)
+        size = (n_pixel,n_pixel)
     )
     
     # Generate file name and save plot
@@ -80,6 +79,7 @@ end
 
 function update_particles!(
     i::Int64,
+    n_pixel::Int64, dpi::Int64,
     vx::Float64, vy::Float64, uu::Float64, uv::Float64, vv::Float64,
     x::Vector{Float32}, y::Vector{Float32},
     num_parts::Int64, next_part::Int64
@@ -114,6 +114,7 @@ function update_particles!(
     # Generate current snapshot
     Take_Snap(
         cfg.x_min, cfg.x_max, cfg.y_min, cfg.y_max,
+        cfg.n_pixel, cfg.dpi,
         i, out,
         x, y, num_parts
     )
@@ -131,6 +132,9 @@ end
 # Get parameters and configuration data
 (cfg_file, met, out) = get_args()
 cfg = get_config(cfg_file)
+if !cfg.valid
+    exit(1)
+end
 
 # Set particle pool by pre-allocating it
 ne::Int64 = cfg.n_parts_per_second
@@ -151,6 +155,7 @@ num_parts::Int64 = cfg.n_parts_per_second
 i::Int64 = 0
 Take_Snap(
     cfg.x_min, cfg.x_max, cfg.y_min, cfg.y_max,
+    cfg.n_pixel, cfg.dpi,
     i, out,
     x, y, num_parts
 )
@@ -167,7 +172,7 @@ a = @animate for i in 1:n
     uu = met_data.uu[i]
     vv = met_data.vv[i]
     uv = met_data.uv[i]
-    (num_parts, next_part) = update_particles!(i, vx, vy, uu, uv, vv, x, y, num_parts, next_part)
+    (num_parts, next_part) = update_particles!(i, cfg.n_pixel, cfg.dpi, vx, vy, uu, uv, vv, x, y, num_parts, next_part)
     
     println("Iteration no. ", i, " out of ", n)
     
