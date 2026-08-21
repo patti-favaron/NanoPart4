@@ -1,176 +1,115 @@
-# Configure plotting system for headless 
-ENV["GKSwstype"] = "100"
+module Config
 
-using CSV
-using DataFrames
-using Plots
-using Printf
-using Distributions
-#using CUDA
+    using TOML
 
+    export Config, get_config
 
-# This is configuration: change as needed
-struct Config
-    x_min::Float32
-    x_max::Float32
-    y_min::Float32
-    y_max::Float32
-    n_seconds::Int64
-    n_parts_per_second::Int64
-    save_plots::Bool
-end
-cfg = Config(-1000.0,1000.0,-1000.0,1000.0,7200,10,true)
-
-# Check and get command arguments
-function get_args()
-
-    # Check parameters, and print a message if not valid
-    if length(ARGS) !== 2 then
-        println("nanopart4 - Driver to build ultrasonic anemometer flow displays")
-        println("")
-        println("Usage:")
-        println("")
-        println("  julia nanopart4.jl <met_file> <out_file>")
-        println("")
-        println("For best results the <out_file> should be an .mp4")
-        println("")
-        println("Copyright 2026 by Patrizia Favaron")
-        println("This is open-source software, covered by MIT license")
-        println("")
-        exit(1)
+    # This is configuration: change as needed
+    mutable struct Config
+        valid::Bool
+        x_min::Float32
+        x_max::Float32
+        y_min::Float32
+        y_max::Float32
+        n_seconds::Int64
+        n_parts_per_second::Int64
+        n_pixel::Int64
+        dpi::Int64
+        opacity::Float64
     end
-    
-    # Get parameters and yield them
-    met_file = ARGS[1]
-    out_file = ARGS[2]
-    (met_file, out_file)
-    
-end
 
-
-function Take_Snap(
-    xmin::Float32, xmax::Float32, ymin::Float32, ymax::Float32,
-    i::Int64, path::String,
-    x::Vector{Float32}, y::Vector{Float32}, num_parts::Int64
-)
-    
-    # Generate the scatter plot of current particles
-    p = plot(
-        x[1:num_parts],
-        y[1:num_parts],
-        seriestype = :scatter,
-        ms = 1, mc = :black, ma = 0.25,
-        legend = false,
-        dpi = 200.0,
-        xlims = (xmin,xmax),
-        ylims = (ymin,ymax),
-        xlabel = "X (m)",
-        ylabel = "Y (m)",
-        aspect_ratio = :equal,
-        size = (1000,1000)
-    )
-    
-    # Generate file name and save plot
-    file_name = @sprintf "%s/%06d" path i
-    
-end
-
-
-function update_particles!(
-    i::Int64,
-    vx::Float64, vy::Float64, uu::Float64, uv::Float64, vv::Float64,
-    x::Vector{Float32}, y::Vector{Float32},
-    num_parts::Int64, next_part::Int64
-)
-
-    # Set distribution
-    m = [vx, vy]
-    C = [uu uv; uv vv]
-    distr = MvNormal(m, C)
-    # -1- Generate the actual shifts
-    delta = rand(distr, num_parts)
-    # -1- Apply the shifts
-    for k in 1:num_parts
-        x[k] += delta[1,k]
-        y[k] += delta[2,k]
-    end
-    
-    # Emit new particles
-    for p_idx in 1:ne
-        x[next_part] = 0.0
-        y[next_part] = 0.0
-        next_part += 1
-        if next_part > np
-            next_part = 1
-        end
-        num_parts += 1
-        if num_parts > np
-            num_parts = np
+    # Get configuration
+    function get_float32(d, key::String, default::Float32)::Float32
+        if haskey(d, key)
+            value = d[key]
+            if typeof(value) === :Float64
+                return convert(Float32, value)
+            else
+                return default
+            end
+        else
+            return default
         end
     end
     
-    # Generate current snapshot
-    if cfg.save_plots
-        Take_Snap(
-            cfg.x_min, cfg.x_max, cfg.y_min, cfg.y_max,
-            i, out,
-            x, y, num_parts
-        )
+    function get_float64(d, key::String, default::Float64)::Float64
+        if haskey(d, key)
+            value = d[key]
+            if typeof(value) === :Float64
+                return value
+            else
+                return default
+            end
+        else
+            return default
+        end
     end
     
-    # Send back modified counters
-    return (num_parts, next_part)
+    function get_int64(d, key::String, default::Int64)::Int64
+        if haskey(d, key)
+            value = d[key]
+            if typeof(value) === :Int64
+                return value
+            else
+                return default
+            end
+        else
+            return default
+        end
+    end
+    
+    function get_config(cfg_name)
+    
+        # Assign empties (not surviving validation)
+        cfg = Config(false,0.0f0,0.0f0,0.0f0,0.0f0,0,0,0,0,0.0)
+        
+        # Get configuration data from file; in case they are missing
+        # the configuration keys do not fulfil validity criteria, preventing
+        # a costly improper run to start
+        d = TOML.parsefile(cfg_name)
+        if haskey(d, "Particle_Pool")
+            dg = d["Particle_Pool"]
+            cfg.n_seconds = get_int64(dg, "length_second", 3600)
+            cfg.n_parts_per_second = get_int64(dg, "parts_per_step", 10)
+        end
+        if haskey(d, "Movie_Frames")
+            dg = d["Movie_Frames"]
+            delta::Float32 = get_float32(dg, "edge_length_meters", 700.0f0)
+            edge_inch::Int64 = get_int64(dg, "edge_inch", 5)
+            cfg.dpi = get_int64(dg, "dpi", 200)
+            cfg.opacity = get_float64(dg, "opacity", 0.25)
+            cfg.x_min = -delta / 2.0f0
+            cfg.x_max =  delta / 2.0f0
+            cfg.y_min = -delta / 2.0f0
+            cfg.y_max =  delta / 2.0f0
+        end
+            
+        # Perform validation
+        cfg.valid = true
+        if cfg.x_max - cfg.x_min <= 0.0
+            cfg.valid = false
+            println("Invalid 'edge_length_meter': cannot be negative or zero")
+        end
+        if cfg.n_pixel <= 0
+            cfg.valid = false
+            println("Invalid combination of 'edge_inch' and 'dpi': their combination cannot be zero or negative")
+        end
+        if cfg.n_pixel > 2000
+            cfg.valid = false
+            println("Invalid combination of 'edge_inch' and 'dpi': their combination cannot be larger than 2000")
+        end
+        if cfg.n_parts_per_second <= 0
+            cfg.valid = false
+            println("Invalid 'parts_per_step': cannot be zero or negative")
+        end
+        if cfg.n_parts_per_second > 100
+            cfg.valid = false
+            println("Invalid 'parts_per_step': cannot be larger than 100")
+        end
+        
+        # Yield result
+        return cfg
+        
+    end
     
 end
-
-
-# Main logics
-#
-# Get parameters and validate them
-(met, out) = get_args()
-println("Meteo data file:  ", met)
-
-# Set particle pool by pre-allocating it
-ne::Int64 = cfg.n_parts_per_second
-np::Int64 = ne * cfg.n_seconds
-x::Vector{Float32} = zeros(np)
-y::Vector{Float32} = zeros(np)
-
-# Read meteo data
-met_data = CSV.read(met, DataFrames.DataFrame; delim = ',', header = true)
-n = nrow(met_data)
-
-# Initialize particle pool (actually, assume the prescribed number of particles have
-# beel released on second 0)
-next_part::Int64 = cfg.n_parts_per_second + 1
-num_parts::Int64 = cfg.n_parts_per_second
-
-# Take initial snapshot with all first particles at origin
-if cfg.save_plots
-    i::Int64 = 0
-    Take_Snap(
-        cfg.x_min, cfg.x_max, cfg.y_min, cfg.y_max,
-        i, out,
-        x, y, num_parts
-    )
-end
-
-# Iterate over meteo data
-a = @animate for i in 1:n
-
-    global num_parts
-    global next_part
-
-    # Move existing particles
-    vx = met_data.u[i]
-    vy = met_data.v[i]
-    uu = met_data.uu[i]
-    vv = met_data.vv[i]
-    uv = met_data.uv[i]
-    (num_parts, next_part) = update_particles!(i, vx, vy, uu, uv, vv, x, y, num_parts, next_part)
-    
-    println("Iteration no. ", i, " out of ", n)
-    
-end
-println("Writing video file to ", out)
-gif(a, out)
