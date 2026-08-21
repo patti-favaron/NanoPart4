@@ -77,6 +77,7 @@ module Config
             delta::Float32 = get_float32(dg, "edge_length_meters", 700.0f0)
             edge_inch::Int64 = get_int64(dg, "edge_inch", 5)
             cfg.dpi = get_int64(dg, "dpi", 200)
+            cfg.n_pixel = cfg.dpi * edge_inch
             cfg.opacity = get_float64(dg, "opacity", 0.25)
             cfg.x_min = -delta / 2.0f0
             cfg.x_max =  delta / 2.0f0
