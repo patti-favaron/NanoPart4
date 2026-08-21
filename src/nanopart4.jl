@@ -50,7 +50,7 @@ end
 
 function Take_Snap(
     xmin::Float32, xmax::Float32, ymin::Float32, ymax::Float32,
-    n_pixel::Int64, dpi::Int64, i::Int64, path::String,
+    n_pixel::Int64, dpi::Int64, opacity::Float64, i::Int64, path::String,
     x::Vector{Float32}, y::Vector{Float32}, num_parts::Int64
 )
     
@@ -59,7 +59,7 @@ function Take_Snap(
         x[1:num_parts],
         y[1:num_parts],
         seriestype = :scatter,
-        ms = 1, mc = :black, ma = 0.25,
+        ms = 1, mc = :black, ma = opacity,
         legend = false,
         dpi = dpi,
         xlims = (xmin,xmax),
@@ -79,7 +79,7 @@ end
 
 function update_particles!(
     i::Int64,
-    n_pixel::Int64, dpi::Int64,
+    n_pixel::Int64, dpi::Int64, opacity::Float64,
     vx::Float64, vy::Float64, uu::Float64, uv::Float64, vv::Float64,
     x::Vector{Float32}, y::Vector{Float32},
     num_parts::Int64, next_part::Int64
@@ -114,7 +114,7 @@ function update_particles!(
     # Generate current snapshot
     Take_Snap(
         cfg.x_min, cfg.x_max, cfg.y_min, cfg.y_max,
-        cfg.n_pixel, cfg.dpi,
+        cfg.n_pixel, cfg.dpi, cfg.opacity,
         i, out,
         x, y, num_parts
     )
@@ -155,7 +155,7 @@ num_parts::Int64 = cfg.n_parts_per_second
 i::Int64 = 0
 Take_Snap(
     cfg.x_min, cfg.x_max, cfg.y_min, cfg.y_max,
-    cfg.n_pixel, cfg.dpi,
+    cfg.n_pixel, cfg.dpi, cfg.opacity,
     i, out,
     x, y, num_parts
 )
@@ -172,7 +172,7 @@ a = @animate for i in 1:n
     uu = met_data.uu[i]
     vv = met_data.vv[i]
     uv = met_data.uv[i]
-    (num_parts, next_part) = update_particles!(i, cfg.n_pixel, cfg.dpi, vx, vy, uu, uv, vv, x, y, num_parts, next_part)
+    (num_parts, next_part) = update_particles!(i, cfg.n_pixel, cfg.dpi, cfg.opacity, vx, vy, uu, uv, vv, x, y, num_parts, next_part)
     
     println("Iteration no. ", i, " out of ", n)
     
