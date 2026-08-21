@@ -1,13 +1,13 @@
-# Configure plotting system for headless 
+# Configure plotting system for headless execution: this
+# way the individual plots are not emitted to screen
 ENV["GKSwstype"] = "100"
 
-using CSV
 # Imported modules
+using CSV
 using DataFrames
 using Plots
 using Printf
 using Distributions
-#using CUDA
 
 # Internal modules
 include("src/Config.jl")
